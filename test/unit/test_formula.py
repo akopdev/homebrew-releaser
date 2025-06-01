@@ -826,19 +826,59 @@ def test_generate_formula_override_version():
     assert '9.8.7' in formula
 
 
-def test_generate_formula_formula_includes():
-    """Tests that we generate the formula content correctly when using the formula_includes param.
-
+def test_generate_complete_python_formula():
+    """Tests that we generate a fully-compliant Python formula file with all necessary components.
+    
+    This comprehensive test verifies that:
+    1. Python-specific formula includes (Language::Python::Shebang and Language::Python::Virtualenv) are properly added
+    2. Resources section for Python dependencies is correctly formatted
+    3. Virtual environment setup is properly included
+    4. Installation instructions for a Python project are correct
+    
     NOTE: See docstring in `_record_formula` for more details on how recording formulas works.
     """
     formula_filename = f'{inspect.stack()[0][3]}.rb'
     mock_repo_name = formula_filename.replace('_', '-').replace('.rb', '')
     mock_tar_url = f'https://github.com/{USERNAME}/{mock_repo_name}/archive/refs/tags/v0.1.0.tar.gz'
 
+    # Mock a Python project setup
     repository = {
-        'description': DESCRIPTION,
+        'description': 'A Python tool for data processing and analysis',
         'license': LICENSE,
     }
+    
+    # Python-specific formula includes
+    python_includes = '''include Language::Python::Shebang
+include Language::Python::Virtualenv'''
+    
+    # Mock Python installation instructions with virtualenv setup and resources
+    python_install = '''# Mock brew update-python-resources command
+    # This would typically be run during formula creation, not at install time
+    # but we're including it here to demonstrate the concept
+    system "#{Formula["python@3.9"].opt_bin}/python3", "-m", "pip", "install", "build", "--target=libexec"
+    
+    # Resources section for Python dependencies
+    resource "requests" do
+      url "https://files.pythonhosted.org/packages/9d/be/10918a2eac4ae9f02f6cfe6414b7a155ccd8f7f9d4380d62fd5b955065c3/requests-2.31.0.tar.gz"
+      sha256 "942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1"
+    end
+
+    resource "pyyaml" do
+      url "https://files.pythonhosted.org/packages/cd/e5/af35f7ea75cf72f2cd079c95ee16797de7cd71f29ea7c68ae5ce7be1eda0/PyYAML-6.0.1.tar.gz"
+      sha256 "bfdf460b1736c775f2ba9f6a92bca30bc2095067b8a9d77876d1fad6cc3b4a43"
+    end
+    
+    virtualenv_install_with_resources
+    
+    # Update shebang in executable scripts
+    Dir["#{libexec}/bin/*"].each do |script|
+      rewrite_shebang detected_python_shebang, script
+    end
+    bin.env_script_all_files(libexec/"bin", PATH: "#{libexec}/bin:$PATH")'''
+    
+    # Mock Python test
+    python_test = '''system "#{bin}/test-generate-complete-python-formula", "--version"
+    system "#{bin}/test-generate-complete-python-formula", "--help"'''
 
     formula = Formula.generate_formula_data(
         owner=USERNAME,
@@ -854,14 +894,41 @@ def test_generate_formula_formula_includes():
                 },
             }
         ],
-        install=INSTALL,
+        install=python_install,
         tar_url=mock_tar_url,
-        formula_includes='include Language::Python::Virtualenv',
+        depends_on='"python@3.9"\n"setuptools"\n"wheel" => :build',
+        test=python_test,
+        formula_includes=python_includes,
     )
 
     _record_formula(formula_path, formula_filename, formula)
 
+    # Verify Python-specific formula includes
+    assert 'include Language::Python::Shebang' in formula
     assert 'include Language::Python::Virtualenv' in formula
+    
+    # Verify Python dependencies
+    assert 'depends_on "python@3.9"' in formula
+    assert 'depends_on "setuptools"' in formula
+    assert 'depends_on "wheel" => :build' in formula
+    
+    # Verify Python installation instructions
+    assert 'virtualenv_install_with_resources' in formula
+    assert 'rewrite_shebang detected_python_shebang' in formula
+    assert 'bin.env_script_all_files' in formula
+    
+    # Verify resources section
+    assert 'resource "requests" do' in formula
+    assert 'resource "pyyaml" do' in formula
+    assert 'url "https://files.pythonhosted.org/packages/' in formula
+    assert 'sha256 "942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1"' in formula
+    
+    # Verify mock brew update-python-resources
+    assert 'system "#{Formula["python@3.9"].opt_bin}/python3", "-m", "pip", "install", "build"' in formula
+    
+    # Verify Python test
+    assert 'system "#{bin}/test-generate-complete-python-formula", "--version"' in formula
+    assert 'system "#{bin}/test-generate-complete-python-formula", "--help"' in formula
 
 
 @pytest.mark.parametrize(
