@@ -75,8 +75,16 @@ def test_format_formula_data():
     """
     formulas = ReadmeUpdater.format_formula_data('./test')
 
-    assert len(formulas) == 15
-    assert formulas[0] == {
+    assert len(formulas) == 16
+    
+    # Find the specific formula we're looking for
+    test_generate_formula = None
+    for formula in formulas:
+        if formula['name'] == 'test-generate-formula':
+            test_generate_formula = formula
+            break
+    
+    assert test_generate_formula == {
         'name': 'test-generate-formula',
         'desc': 'Tool to release scripts, binaries, and executables to github',
         'homepage': 'https://github.com/Justintime50/test-generate-formula',
